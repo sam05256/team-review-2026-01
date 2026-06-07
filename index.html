@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>다이내믹 듀오: 팀플 리뷰어</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    /* ===== RESET ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { height: 100dvh; }
+
+    /* ===== THEME VARIABLES ===== */
+    [data-theme="overwatch"] {
+      --bg:            #14151F;
+      --panel:         #1D1F2B;
+      --panel2:        #252838;
+      --accent:        #F5A623;
+      --accent2:       #00C8FF;
+      --gold:          #FFD700;
+      --text:          #FFFFFF;
+      --text-dim:      #8892A4;
+      --border:        #2E3147;
+      --btn-bg:        #F5A623;
+      --btn-text:      #14151F;
+      --font:          'Orbitron', sans-serif;
+      --input-bg:      #252838;
+      --sel-border:    #FFD700;
+      --card-sel:      #2A2D3E;
+      --score-glow:    rgba(245,166,35,0.25);
+    }
+    [data-theme="baskin"] {
+      --bg:            #FFF0F3;
+      --panel:         #FFFFFF;
+      --panel2:        #FFF5F7;
+      --accent:        #E3006D;
+      --accent2:       #0072CE;
+      --gold:          #FF8C00;
+      --text:          #3D1C02;
+      --text-dim:      #A07080;
+      --border:        #FFD6E0;
+      --btn-bg:        #E3006D;
+      --btn-text:      #FFFFFF;
+      --font:          'Nunito', sans-serif;
+      --input-bg:      #FFF5F7;
+      --sel-border:    #E3006D;
+      --card-sel:      #FFF0F5;
+      --score-glow:    rgba(227,0,109,0.15);
+    }
+
+    /* ===== BASE ===== */
+    body {
+      height: 100dvh;
+      overflow: hidden;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      transition: background 0.35s, color 0.35s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ===== THEME BAR ===== */
+    .theme-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 54px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 100;
+      transition: background 0.35s, border-color 0.35s;
+    }
+    .theme-lbl {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-dim);
+      transition: color 0.3s;
+      letter-spacing: 0.3px;
+    }
+    .theme-lbl.on { color: var(--accent); }
+
+    /* Toggle */
+    .tog { position: relative; width: 50px; height: 26px; cursor: pointer; }
+    .tog input { opacity: 0; width: 0; height: 0; }
+    .tog-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 26px;
+      background: #F5A623;
+      transition: background 0.35s;
+    }
+    [data-theme="baskin"] .tog-track { background: #E3006D; }
+    .tog input:checked + .tog-track { background: #E3006D; }
+    .tog-thumb {
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 20px; height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.3s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    .tog input:checked ~ .tog-thumb { transform: translateX(24px); }
+
+    /* ===== SCREENS ===== */
+    .screen {
+      display: none;
+      flex-direction: column;
+      height: 100dvh;
+      padding-top: 54px;
+      background: var(--bg);
+      transition: background 0.35s;
+    }
+    .screen.active { display: flex; }
+
+    /* ===== SCREEN 1 · LOBBY ===== */
+    #s-lobby {
+      align-items: center;
+      justify-content: center;
+      padding: 54px 24px 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── OW 테마: 헥사곤 그리드 배경 ── */
+    [data-theme="overwatch"] #s-lobby::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='70' height='80' viewBox='0 0 70 80'%3E%3Cpolygon points='35,2 68,20 68,56 35,74 2,56 2,20' fill='none' stroke='rgba(245,166,35,0.10)' stroke-width='1'/%3E%3C/svg%3E");
+      background-size: 70px 80px;
+      background-position: center;
+      animation: hexDrift 30s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes hexDrift {
+      0%   { background-position: 0px 0px; }
+      100% { background-position: 70px 80px; }
+    }
+
+    /* ── OW 테마: 대기 분위기 글로우 ── */
+    [data-theme="overwatch"] #s-lobby::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 15% 90%, rgba(245,166,35,0.18) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 40% at 85% 10%, rgba(0,200,255,0.14) 0%, transparent 65%),
+        radial-gradient(ellipse 40% 30% at 50% 50%, rgba(20,21,31,0.0) 0%, rgba(8,9,16,0.6) 100%);
+      pointer-events: none;
+    }
+
+    /* ── OW 테마: 스캔라인 ── */
+    [data-theme="overwatch"] .lobby-scanline {
+      display: block;
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(245,166,35,0.35), rgba(0,200,255,0.25), transparent);
+      animation: scanline 5s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 1;
+    }
+    @keyframes scanline {
+      0%   { top: 10%; opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { top: 92%; opacity: 0; }
+    }
+    [data-theme="baskin"] .lobby-scanline { display: none; }
+
+    /* ── BR 테마: 물방울 배경 ── */
+    [data-theme="baskin"] #s-lobby::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(227,0,109,0.09) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+    }
+    [data-theme="baskin"] #s-lobby::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 20% 85%, rgba(227,0,109,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 15%, rgba(0,114,206,0.10) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* ── 카드 래퍼 ── */
+    .lobby-box {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* ── OW 스타일 코너 브래킷이 달린 패널 ── */
+    .lobby-panel {
+      background: rgba(29,31,43,0.82);
+      border: 1px solid rgba(245,166,35,0.22);
+      border-radius: 4px;
+      padding: 24px 22px 22px;
+      position: relative;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    [data-theme="baskin"] .lobby-panel {
+      background: rgba(255,255,255,0.88);
+      border: 1px solid rgba(227,0,109,0.2);
+      border-radius: 16px;
+    }
+
+    /* OW 코너 브래킷 */
+    [data-theme="overwatch"] .lobby-panel::before,
+    [data-theme="overwatch"] .lobby-panel::after {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      border-color: #F5A623;
+      border-style: solid;
+    }
+    [data-theme="overwatch"] .lobby-panel::before {
+      top: -1px; left: -1px;
+      border-width: 2px 0 0 2px;
+    }
+    [data-theme="overwatch"] .lobby-panel::after {
+      bottom: -1px; right: -1px;
+      border-width: 0 2px 2px 0;
+    }
+    /* 추가 코너 (우상단·좌하단) — span으로 구현 */
+    [data-theme="overwatch"] .corner-tr,
+    [data-theme="overwatch"] .corner-bl {
+      display: block;
+      position: absolute;
+      width: 14px; height: 14px;
+      border-color: #F5A623;
+      border-style: solid;
+    }
+    [data-theme="overwatch"] .corner-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+    [data-theme="overwatch"] .corner-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+    [data-theme="baskin"] .corner-tr,
+    [data-theme="baskin"] .corner-bl { display: none; }
+
+    /* ── 로고 영역 ── */
+    .logo-wrap { text-align: center; }
+
+    /* OW: 상단 구분선 */
+    [data-theme="overwatch"] .logo-topline {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    [data-theme="overwatch"] .logo-topline::before,
+    [data-theme="overwatch"] .logo-topline::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(245,166,35,0.5));
+    }
+    [data-theme="overwatch"] .logo-topline::after {
+      background: linear-gradient(270deg, transparent, rgba(245,166,35,0.5));
+    }
+    .logo-topline-txt {
+      font-size: 9px;
+      font-weight: 700;
+      color: #F5A623;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    [data-theme="baskin"] .logo-topline { display: none; }
+
+    /* OW: 상태 표시등 */
+    [data-theme="overwatch"] .lobby-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 9px;
+      font-weight: 700;
+      color: #00FF64;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .lobby-status-dot {
+      width: 7px; height: 7px;
+      background: #00FF64;
+      border-radius: 50%;
+      animation: blinkDot 1.8s ease-in-out infinite;
+    }
+    @keyframes blinkDot {
+      0%,100% { opacity: 1; box-shadow: 0 0 6px #00FF64; }
+      50%      { opacity: 0.3; box-shadow: none; }
+    }
+    [data-theme="baskin"] .lobby-status { display: none; }
+
+    .logo-title {
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1.1;
+      transition: color 0.35s;
+      letter-spacing: 1px;
+    }
+    [data-theme="overwatch"] .logo-title {
+      text-shadow: 0 0 30px rgba(245,166,35,0.5), 0 2px 8px rgba(0,0,0,0.8);
+    }
+    .logo-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+    }
+    /* OW: 하단 장식선 */
+    [data-theme="overwatch"] .logo-divider {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 12px auto 0;
+      max-width: 200px;
+    }
+    [data-theme="overwatch"] .logo-divider::before,
+    [data-theme="overwatch"] .logo-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(245,166,35,0.3);
+    }
+    .logo-divider-diamond {
+      width: 6px; height: 6px;
+      background: #F5A623;
+      transform: rotate(45deg);
+    }
+    [data-theme="baskin"] .logo-divider { display: none; }
+
+    /* ── 필드 ── */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field + .field { margin-top: 14px; }
+    .field-lbl {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+    }
+    .field-input {
+      background: var(--input-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      padding: 13px 14px;
+      font-size: 16px;
+      font-family: var(--font);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.25s, background 0.35s, box-shadow 0.25s;
+      width: 100%;
+    }
+    [data-theme="baskin"] .field-input { border-radius: 12px; }
+    .field-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(245,166,35,0.12);
+    }
+    [data-theme="baskin"] .field-input:focus {
+      box-shadow: 0 0 0 3px rgba(227,0,109,0.12);
+    }
+    .field-input::placeholder { color: var(--text-dim); opacity: 0.6; }
+
+    /* OW: 입력창 왼쪽 강조 바 */
+    [data-theme="overwatch"] .field-input:focus {
+      border-left-color: #F5A623;
+      border-left-width: 3px;
+    }
+
+    .btn-main {
+      width: 100%;
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      border: none;
+      border-radius: 6px;
+      padding: 16px;
+      font-size: 13px;
+      font-family: var(--font);
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 52px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: opacity 0.2s, transform 0.12s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    [data-theme="baskin"] .btn-main { border-radius: 14px; letter-spacing: 0.3px; text-transform: none; }
+    [data-theme="overwatch"] .btn-main {
+      box-shadow: 0 0 20px rgba(245,166,35,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+    }
+    [data-theme="overwatch"] .btn-main::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+      transition: left 0.4s ease;
+    }
+    [data-theme="overwatch"] .btn-main:hover::after { left: 140%; }
+    .btn-main:active { transform: scale(0.97); opacity: 0.88; }
+
+    /* ===== SCREEN 2 · PICK (NEW) ===== */
+    #s-pick {
+      padding-top: 54px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* OW: hex grid bg */
+    [data-theme="overwatch"] #s-pick::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='70' height='80' viewBox='0 0 70 80'%3E%3Cpolygon points='35,2 68,20 68,56 35,74 2,56 2,20' fill='none' stroke='rgba(245,166,35,0.06)' stroke-width='1'/%3E%3C/svg%3E");
+      background-size: 70px 80px;
+      pointer-events: none;
+    }
+    [data-theme="overwatch"] #s-pick::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 55% 35% at 10% 95%, rgba(245,166,35,0.14) 0%, transparent 60%),
+        radial-gradient(ellipse 45% 30% at 90% 5%,  rgba(0,200,255,0.10) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* BR: dot bg */
+    [data-theme="baskin"] #s-pick::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(227,0,109,0.07) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+    }
+
+    /* ── Header ── */
+    .pick-hd {
+      padding: 13px 18px 11px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(20,21,31,0.93);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+      backdrop-filter: blur(4px);
+      transition: border-color 0.35s;
+    }
+    [data-theme="baskin"] .pick-hd { background: rgba(255,255,255,0.93); }
+
+    .pick-hd-hint {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .pick-hd-name {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--accent);
+      margin-top: 2px;
+    }
+
+    /* ── 5 Portrait Row ── */
+    .hero-row {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 18px 12px 12px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-portrait {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      flex: 1;
+      max-width: 74px;
+      transition: transform 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .hero-portrait:active { transform: scale(0.93); }
+    .hero-portrait.sel    { transform: scale(1.10); }
+
+    /* OW: hexagonal clip on portrait */
+    .hp-ring {
+      position: relative;
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(245,166,35,0.22);
+      overflow: hidden;
+      background: var(--panel2);
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    [data-theme="baskin"] .hp-ring {
+      border-color: rgba(227,0,109,0.18);
+      border-radius: 50%;
+    }
+    .hero-portrait.sel .hp-ring {
+      border-color: var(--accent);
+      box-shadow: 0 0 22px rgba(245,166,35,0.6), 0 0 0 2px rgba(245,166,35,0.18);
+    }
+    [data-theme="baskin"] .hero-portrait.sel .hp-ring {
+      box-shadow: 0 0 22px rgba(227,0,109,0.5), 0 0 0 2px rgba(227,0,109,0.14);
+    }
+
+    /* OW: hexagon clip shape overlay */
+    [data-theme="overwatch"] .hp-ring::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(245,166,35,0.06) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .hp-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+    }
+
+    /* 포트레이트 위 점수 레이블 */
+    .hp-score-lbl {
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--accent);
+      letter-spacing: 0.5px;
+      text-align: center;
+      margin-bottom: 3px;
+      transition: color 0.2s, text-shadow 0.2s;
+    }
+    [data-theme="overwatch"] .hero-portrait.sel .hp-score-lbl {
+      color: #FFD700;
+      text-shadow: 0 0 10px rgba(255,215,0,0.7);
+    }
+    [data-theme="baskin"] .hero-portrait.sel .hp-score-lbl {
+      color: var(--accent);
+    }
+
+    /* 배지 숨김 */
+    .hp-badge { display: none; }
+
+    .hp-name {
+      font-size: 8.5px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-align: center;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      max-width: 100%;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+      transition: color 0.2s;
+    }
+    .hero-portrait.sel .hp-name { color: var(--accent); }
+
+    /* ── Detail Panel (hidden until pick) ── */
+    .hero-detail {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      margin: 4px 14px 0;
+      background: rgba(18,20,32,0.90);
+      border: 1px solid rgba(245,166,35,0.28);
+      border-radius: 4px;
+      position: relative;
+      z-index: 2;
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      animation: hdIn 0.28s cubic-bezier(0.22,1,0.36,1);
+    }
+    [data-theme="baskin"] .hero-detail {
+      background: rgba(255,255,255,0.95);
+      border: 1.5px solid rgba(227,0,109,0.22);
+      border-radius: 18px;
+    }
+    .hero-detail.visible { display: flex; }
+
+    @keyframes hdIn {
+      from { opacity: 0; transform: translateY(18px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* OW: top gradient accent */
+    [data-theme="overwatch"] .hero-detail::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #F5A623 25%, #00C8FF 75%, transparent);
+    }
+
+    /* OW corner brackets */
+    .hd-corner {
+      position: absolute;
+      width: 11px; height: 11px;
+      border-color: rgba(245,166,35,0.7);
+      border-style: solid;
+      pointer-events: none;
+      z-index: 1;
+    }
+    [data-theme="baskin"] .hd-corner { display: none; }
+    .hd-tl { top: 0; left: 0;  border-width: 2px 0 0 2px; }
+    .hd-tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
+    .hd-bl { bottom: 0; left: 0;  border-width: 0 0 2px 2px; }
+    .hd-br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+    /* ── Detail: 스킨 전체 배경 레이아웃 ── */
+    .hd-inner {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+      display: block;
+      min-height: 220px;
+    }
+
+    /* 스킨 배경 이미지 — 패널 꽉 채움 */
+    .hd-img-wrap {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .hd-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 20%;
+      display: block;
+    }
+    /* 흰 배경 일러스트 (Ana, Bastion) — 다크 테마와 자연스럽게 합성 */
+    [data-theme="overwatch"] .hd-img.art-illust {
+      mix-blend-mode: luminosity;
+      opacity: 0.85;
+    }
+
+    /* OW: 좌상단(점수) + 우하단(텍스트)만 살짝 어둡게, 우측 페이드 없음 */
+    [data-theme="overwatch"] .hd-img-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 0% 0%,   rgba(10,11,20,0.65) 0%, transparent 70%),
+        radial-gradient(ellipse 65% 55% at 100% 100%, rgba(10,11,20,0.72) 0%, transparent 70%);
+    }
+
+    /* BR: 전체에 흰 반투명 레이어 + 좌상단·우하단 강화 */
+    [data-theme="baskin"] .hd-img-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.0) 40%),
+        linear-gradient(0deg,   rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.0) 45%),
+        rgba(255,255,255,0.15);
+    }
+
+    /* 점수 — 절대 좌상단 */
+    .hd-score {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      z-index: 2;
+      font-size: 72px;
+      font-weight: 900;
+      color: var(--gold);
+      line-height: 1;
+      letter-spacing: -3px;
+    }
+    [data-theme="overwatch"] .hd-score {
+      text-shadow: 0 0 40px rgba(255,215,0,0.7), 0 2px 10px rgba(0,0,0,1);
+    }
+    [data-theme="baskin"] .hd-score {
+      font-size: 64px;
+      color: #E3006D;
+      text-shadow: 0 2px 0 rgba(255,255,255,0.9), 0 0 20px rgba(255,255,255,0.8), 2px 2px 8px rgba(0,0,0,0.25);
+    }
+
+    /* 텍스트 영역 — 절대 우하단 */
+    .hd-info {
+      position: absolute;
+      z-index: 2;
+      right: 0;
+      bottom: 0;
+      width: 58%;
+      padding: 0 16px 16px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      text-align: right;
+    }
+
+    .hd-role {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 4px;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.9);
+    }
+
+    .hd-name {
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--text);
+      line-height: 1.1;
+      margin-bottom: 8px;
+      text-shadow: 0 2px 14px rgba(0,0,0,0.95);
+    }
+
+    .hd-quote {
+      font-size: 11px;
+      color: rgba(255,255,255,0.8);
+      line-height: 1.55;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.9);
+    }
+    [data-theme="baskin"] .hd-role  { color: #2A1206; text-shadow: 0 2px 6px rgba(255,255,255,1), 0 0 16px rgba(255,255,255,0.95); font-weight: 800; }
+    [data-theme="baskin"] .hd-name  { color: #1A0D00; text-shadow: 0 2px 10px rgba(255,255,255,1), 0 0 24px rgba(255,255,255,1); font-weight: 900; }
+    [data-theme="baskin"] .hd-quote { color: #3D1C02; text-shadow: 0 1px 8px rgba(255,255,255,1), 0 0 16px rgba(255,255,255,0.95); line-height: 1.7; }
+    [data-theme="overwatch"] .hd-quote::before { content: '"'; color: rgba(245,166,35,0.6); }
+    [data-theme="overwatch"] .hd-quote::after  { content: '"'; color: rgba(245,166,35,0.6); }
+
+
+    /* ── Empty state ── */
+    .pick-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 2;
+      gap: 8px;
+    }
+    .pick-empty-icon { font-size: 32px; opacity: 0.25; }
+    .pick-empty-txt {
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 0.5px;
+      opacity: 0.55;
+    }
+
+    /* ── Footer ── */
+    .pick-ft {
+      padding: 11px 14px 20px;
+      border-top: 1px solid var(--border);
+      background: rgba(20,21,31,0.93);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+      backdrop-filter: blur(4px);
+      transition: border-color 0.35s;
+    }
+    [data-theme="baskin"] .pick-ft { background: rgba(255,255,255,0.93); }
+
+    .btn-submit {
+      width: 100%;
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      border: none;
+      border-radius: 4px;
+      padding: 16px;
+      font-size: 13px;
+      font-family: var(--font);
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 52px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: opacity 0.2s, transform 0.12s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    [data-theme="overwatch"] .btn-submit {
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+      box-shadow: 0 0 18px rgba(245,166,35,0.28);
+    }
+    [data-theme="overwatch"] .btn-submit::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+      transition: left 0.4s ease;
+    }
+    [data-theme="overwatch"] .btn-submit:not(:disabled):hover::after { left: 140%; }
+    [data-theme="baskin"] .btn-submit {
+      border-radius: 14px;
+      letter-spacing: 0.3px;
+      text-transform: none;
+    }
+    .btn-submit:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn-submit:not(:disabled):active { transform: scale(0.97); opacity: 0.88; }
+
+    /* ===== SCREEN 3 · RESULT ===== */
+    #s-result {
+      align-items: center;
+      justify-content: center;
+      padding: 54px 20px 28px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+    }
+    #s-result::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 15% 85%, var(--score-glow) 0%, transparent 45%),
+        radial-gradient(circle at 85% 15%, var(--score-glow) 0%, transparent 45%);
+    }
+    .result-wrap {
+      width: 100%;
+      max-width: 340px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      position: relative;
+      z-index: 1;
+    }
+    .r-card {
+      width: 100%;
+      background: var(--panel);
+      border: 2.5px solid var(--accent);
+      border-radius: 18px;
+      padding: 26px 22px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.35s, border-color 0.35s;
+    }
+    .r-particles {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      animation: pFall linear forwards;
+    }
+    @keyframes pFall {
+      0%   { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+      100% { opacity: 0; transform: translateY(220px) rotate(540deg) scale(0.3); }
+    }
+
+    .r-score {
+      font-size: 52px;
+      font-weight: 900;
+      color: var(--gold);
+      line-height: 1;
+      text-shadow: 0 0 20px rgba(255,215,0,0.4);
+    }
+    .r-img-wrap {
+      margin: 14px auto;
+      width: 110px;
+      height: 110px;
+      position: relative;
+    }
+    .r-img {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid var(--accent);
+      display: block;
+      background: var(--border);
+    }
+    .r-role {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+    .r-name {
+      font-size: 21px;
+      font-weight: 900;
+      color: var(--text);
+      margin: 5px 0 2px;
+    }
+    .r-quote {
+      font-size: 12.5px;
+      color: var(--text-dim);
+      line-height: 1.55;
+      margin-top: 8px;
+    }
+    .r-meta {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 14px;
+      letter-spacing: 0.3px;
+    }
+
+    .save-msg {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+    }
+    .btn-reset {
+      background: transparent;
+      color: var(--accent);
+      border: 2px solid var(--accent);
+      border-radius: 10px;
+      padding: 13px 28px;
+      font-size: 13px;
+      font-family: var(--font);
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 48px;
+      transition: background 0.2s, color 0.2s, transform 0.12s;
+    }
+    .btn-reset:active {
+      background: var(--accent);
+      color: var(--btn-text);
+      transform: scale(0.97);
+    }
+
+    /* ===== ANIMATIONS ===== */
+
+    /* OW 5점: Gold Shimmer */
+    @keyframes owGold {
+      0%,100% { box-shadow: 0 0 0 0 rgba(255,215,0,0); transform: scale(1); }
+      50%      { box-shadow: 0 0 36px 16px rgba(255,215,0,0.5); transform: scale(1.04); }
+    }
+    /* OW 4점: Blue Shield Pulse */
+    @keyframes owBlue {
+      0%,100% { box-shadow: 0 0 0 0 rgba(0,200,255,0); }
+      50%      { box-shadow: 0 0 34px 14px rgba(0,200,255,0.45); }
+    }
+    /* OW 3점: Heal Glow */
+    @keyframes owHeal {
+      0%,100% { box-shadow: 0 0 0 0 rgba(0,255,100,0); }
+      50%      { box-shadow: 0 0 28px 10px rgba(0,255,100,0.4); }
+    }
+    /* OW 2점: Shake */
+    @keyframes owShake {
+      0%,100% { transform: translateX(0) rotate(0deg); }
+      20%      { transform: translateX(-6px) rotate(-2deg); }
+      40%      { transform: translateX(6px) rotate(2deg); }
+      60%      { transform: translateX(-4px) rotate(-1deg); }
+      80%      { transform: translateX(4px) rotate(1deg); }
+    }
+    /* OW 1점: Glitch */
+    @keyframes owGlitch {
+      0%,90%,100% { transform: translateX(0); filter: grayscale(0); }
+      10%  { transform: translateX(-5px); filter: grayscale(1) hue-rotate(90deg); clip-path: inset(10% 0 80% 0); }
+      20%  { transform: translateX(5px);  filter: grayscale(1); clip-path: inset(50% 0 30% 0); }
+      30%  { transform: translateX(-3px); filter: grayscale(1) hue-rotate(180deg); clip-path: none; }
+      40%  { transform: translateX(3px);  filter: grayscale(0.8); }
+      50%  { transform: translateX(0);    filter: grayscale(1); }
+    }
+
+    /* BR 5점: Cup Explosion */
+    @keyframes brCup {
+      0%   { transform: scale(0.6) rotate(-5deg); opacity: 0; }
+      60%  { transform: scale(1.18) rotate(3deg); opacity: 1; }
+      80%  { transform: scale(0.95) rotate(-1deg); }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    /* BR 4점: Caramel Drip */
+    @keyframes brCaramel {
+      0%,100% { box-shadow: 0 0 0 0 rgba(255,179,71,0); }
+      50%      { box-shadow: 0 0 30px 12px rgba(255,179,71,0.5); }
+    }
+    /* BR 3점: Triple Scoop Stack */
+    @keyframes brScoop {
+      0%   { transform: translateY(-30px) scale(0.7); opacity: 0; }
+      100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    /* BR 2점: Mint Sparkle */
+    @keyframes brMint {
+      0%,100% { box-shadow: 0 0 0 0 rgba(152,255,152,0); filter: hue-rotate(0deg); }
+      50%      { box-shadow: 0 0 28px 12px rgba(152,255,152,0.5); filter: hue-rotate(20deg); }
+    }
+    /* BR 1점: Melt Drip */
+    @keyframes brMelt {
+      0%   { transform: scaleY(1) translateY(0); filter: blur(0); }
+      50%  { transform: scaleY(1.05) translateY(3px); filter: blur(0.5px); }
+      100% { transform: scaleY(0.88) translateY(8px); filter: blur(1px) saturate(0.5); }
+    }
+
+    /* Effect class → applied to .r-img */
+    .fx-ow-gold   { animation: owGold 1.2s ease-in-out infinite; }
+    .fx-ow-blue   { animation: owBlue 1.2s ease-in-out infinite; }
+    .fx-ow-heal   { animation: owHeal 1.2s ease-in-out infinite; }
+    .fx-ow-shake  { animation: owShake 0.5s ease-in-out infinite; }
+    .fx-ow-glitch { animation: owGlitch 1s steps(1) infinite; }
+    .fx-br-cup    { animation: brCup 0.7s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+    .fx-br-caramel{ animation: brCaramel 1.2s ease-in-out infinite; }
+    .fx-br-scoop  { animation: brScoop 0.6s ease-out forwards; }
+    .fx-br-mint   { animation: brMint 1.2s ease-in-out infinite; }
+    .fx-br-melt   { animation: brMelt 2s ease-in-out infinite alternate; }
+
+    /* Score 1 OW: desaturate card */
+    .r-card.ow-1 { filter: saturate(0.25); }
+    .r-card.ow-1 .r-score { color: #888; text-shadow: none; }
+    /* Score 5 BR: pink gradient */
+    .r-card.br-5 { background: linear-gradient(145deg, #fff0f3 0%, #ffe0ee 100%); }
+    /* BR theme: pink score text */
+    .r-card[class*="baskin-"] .r-score {
+      color: #E3006D;
+      text-shadow: 0 0 20px rgba(227,0,109,0.35);
+    }
+  </style>
+</head>
+<body data-theme="overwatch">
+
+  <!-- ===== THEME BAR ===== -->
+  <div class="theme-bar">
+    <span class="theme-lbl ow-lbl on" id="owLbl">🎮 팀플워치</span>
+    <label class="tog">
+      <input type="checkbox" id="themeToggle">
+      <div class="tog-track"></div>
+      <div class="tog-thumb"></div>
+    </label>
+    <span class="theme-lbl br-lbl" id="brLbl">🍦 팀플라빈스 31</span>
+  </div>
+
+  <!-- ===== SCREEN 1: LOBBY ===== -->
+  <div id="s-lobby" class="screen active">
+    <span class="lobby-scanline"></span>
+    <div class="lobby-box">
+
+      <!-- 로고 -->
+      <div class="logo-wrap">
+        <div class="logo-topline">
+          <span class="logo-topline-txt">Evaluation System</span>
+        </div>
+        <div class="lobby-status">
+          <span class="lobby-status-dot"></span>
+          <span>System Online</span>
+        </div>
+        <div class="logo-title" id="logoTitle">🎮 팀플워치</div>
+        <div class="logo-desc" id="logoDesc">팀플레이를 데이터로. 동료 평가 시스템</div>
+        <div class="logo-divider"><span class="logo-divider-diamond"></span></div>
+      </div>
+
+      <!-- 입력 패널 -->
+      <div class="lobby-panel">
+        <span class="corner-tr"></span>
+        <span class="corner-bl"></span>
+        <div class="field">
+          <div class="field-lbl">평가자 (나)</div>
+          <input id="inp-evaluator" class="field-input" type="text" placeholder="내 이름 입력" autocomplete="off">
+        </div>
+        <div class="field">
+          <div class="field-lbl">피평가자 (팀원)</div>
+          <input id="inp-target" class="field-input" type="text" placeholder="평가할 팀원 이름" autocomplete="off">
+        </div>
+      </div>
+
+      <button class="btn-main" id="lobbyBtn" onclick="goToPick()">픽창 입장 →</button>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN 2: PICK ===== -->
+  <div id="s-pick" class="screen">
+    <div class="pick-hd">
+      <div class="pick-hd-hint" id="pickHint">누구를 뽑으시겠습니까?</div>
+      <div class="pick-hd-name" id="pickName">—</div>
+    </div>
+
+    <div class="hero-row" id="heroRow"></div>
+
+    <div class="hero-detail" id="heroDetail">
+      <span class="hd-corner hd-tl"></span>
+      <span class="hd-corner hd-tr"></span>
+      <span class="hd-corner hd-bl"></span>
+      <span class="hd-corner hd-br"></span>
+      <div class="hd-inner">
+        <div class="hd-img-wrap">
+          <img class="hd-img" id="hdImg" src="" alt="" onerror="this.style.background='var(--panel2)'">
+        </div>
+        <!-- 점수: 좌상단 -->
+        <div class="hd-score" id="hdScore">5</div>
+        <!-- 설명: 우하단 -->
+        <div class="hd-info">
+          <div class="hd-role" id="hdRole"></div>
+          <div class="hd-name" id="hdName"></div>
+          <div class="hd-quote" id="hdQuote"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pick-empty" id="pickEmpty">
+      <div class="pick-empty-icon" id="pickEmptyIcon">⬆</div>
+      <div class="pick-empty-txt" id="pickEmptyTxt">위에서 선택하세요</div>
+    </div>
+
+    <div class="pick-ft">
+      <button class="btn-submit" id="submitBtn" disabled onclick="doSubmit()">Lock In →</button>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN 3: RESULT ===== -->
+  <div id="s-result" class="screen">
+    <div class="result-wrap">
+      <div class="r-card" id="rCard">
+        <div class="r-particles" id="rParticles"></div>
+        <div class="r-score" id="rScore">5</div>
+        <div class="r-img-wrap">
+          <img class="r-img" id="rImg" src="" alt="" onerror="this.style.background='var(--border)'">
+        </div>
+        <div class="r-role" id="rRole"></div>
+        <div class="r-name" id="rName"></div>
+        <div class="r-quote" id="rQuote"></div>
+        <div class="r-meta" id="rMeta"></div>
+      </div>
+      <div class="save-msg" id="saveMsg">💾 데이터 저장 중...</div>
+      <button class="btn-reset" onclick="resetApp()">🔄 다시 평가하기</button>
+    </div>
+  </div>
+
+  <script>
+  /* ==================== CONFIG ==================== */
+  // Google Apps Script 웹앱 URL 입력 (배포 후)
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbysoTr7gCGxJoo8Ma4ZYoeRaSIxOPGrnmvHkECAWCZzl6VerVA_6DMHlNi4Qfwt3CTf/exec';
+
+  /* ==================== DATA ==================== */
+  const THEMES = {
+    overwatch: {
+      logoTitle : '🎮 팀플워치',
+      logoDesc  : '팀 프로젝트를 함께한 동료의 기여도를 평가해주세요',
+      pickHint  : '기여도를 평가하라',
+      lobbyBtn  : '픽창 입장 →',
+      submitBtn : 'Lock In →',
+      scores: {
+        5: {
+          role  : 'POTG 딜러',
+          name  : '트레이서',
+          img   : 'https://blzgdapipro-a.akamaihd.net/hero/tracer/icon-portrait.png',
+          imgArt: 'https://raw.githubusercontent.com/ValentinZeller/overwatch_skins/main/image/hero/Tracer/10-YEARS_CHEERS.webp',
+          quote : '압도적인 피지컬로 과제를 썰어버림. 우리 팀의 승리 보증 수표.',
+          fx    : 'fx-ow-gold',
+          ptcls : ['#FFD700','#F5A623','#FFFACD'],
+        },
+        4: {
+          role  : '메인 탱커',
+          name  : '라인하르트',
+          img   : 'https://blzgdapipro-a.akamaihd.net/hero/reinhardt/icon-portrait.png',
+          imgArt: 'https://raw.githubusercontent.com/ValentinZeller/overwatch_skins/main/image/hero/Reinhardt/APOCALYPSE_WARRIOR.webp',
+          quote : '묵묵히 팀의 방패가 되어준 멘탈 지킴이. 화물(과제) 기여도 최상위.',
+          fx    : 'fx-ow-blue',
+          ptcls : ['#00C8FF','#007BFF','#E0F7FF'],
+        },
+        3: {
+          role  : '지원가',
+          name  : '아나',
+          img   : 'https://blzgdapipro-a.akamaihd.net/hero/ana/icon-portrait.png',
+          imgArt: 'https://raw.githubusercontent.com/ValentinZeller/overwatch_skins/main/image/hero/Ana/APOCALYPSE_WARRIOR.webp',
+          quote : '눈에 띄진 않지만 빈틈을 채워준 필수 요원. 1인분 완벽 소화.',
+          fx    : 'fx-ow-heal',
+          ptcls : ['#00FF64','#00CC50','#CCFFE0'],
+        },
+        2: {
+          role  : '플랭커',
+          name  : '겐지',
+          img   : 'https://blzgdapipro-a.akamaihd.net/hero/genji/icon-portrait.png',
+          imgArt: 'https://raw.githubusercontent.com/ValentinZeller/overwatch_skins/main/image/hero/Genji/DECENNIUM.webp',
+          quote : '독자적인 판단으로 합류가 늦어짐. 다음엔 팀보이스 참여 요망.',
+          fx    : 'fx-ow-shake',
+          ptcls : ['#FF4444','#FF8800','#FFD700'],
+        },
+        1: {
+          role  : '소통 단절 트롤러',
+          name  : '바스티온',
+          img   : 'https://blzgdapipro-a.akamaihd.net/hero/bastion/icon-portrait.png',
+          imgArt: 'https://raw.githubusercontent.com/ValentinZeller/overwatch_skins/main/image/hero/Bastion/DECENNIUM.webp',
+          quote : '픽창부터 소통 단절. 화물 근처에 오지도 않은 무임승차자.',
+          fx    : 'fx-ow-glitch',
+          ptcls : ['#555','#333','#777'],
+        },
+      },
+    },
+    baskin: {
+      logoTitle : '🍦 팀플라빈스 31',
+      logoDesc  : '팀 프로젝트를 함께한 동료의 기여도를 평가해주세요',
+      pickHint  : '기여도를 평가하라',
+      lobbyBtn  : '스쿱 고르러 가기 🍨',
+      submitBtn : '핑크스푼으로 Lock In! 🥄',
+      scores: {
+        5: {
+          role  : '최고의 추천',
+          name  : '엄마는 외계인',
+          img   : 'https://www.baskinrobbins.co.kr/upload/product/main/91c8668227bcf556c43a968b97e342e6.png',
+          imgArt: './images/2_alien.png',
+          quote : '엄마는 외계인처럼 1순위! 모두가 가장 먼저 찾는 팀원. 이 사람 한 명이 팀의 완성도를 올린다.',
+          fx    : 'fx-br-cup',
+          ptcls : ['#E3006D','#FF69B4','#FFB6C1','#FFFFFF'],
+        },
+        4: {
+          role  : '훌륭한 선택',
+          name  : '아몬드 봉봉',
+          img   : 'https://www.baskinrobbins.co.kr/upload/product/main/e7cb5667c3147ddb0b31e28d1f365980.png',
+          imgArt: './images/4_almond.png',
+          quote : '누가 골라도 실패 없는 완벽한 선택! 어떤 역할을 맡겨도 척척 해내는 든든함.',
+          fx    : 'fx-br-caramel',
+          ptcls : ['#FFB347','#D4A017','#F5DEB3','#FAEBD7'],
+        },
+        3: {
+          role  : '기본의 미학',
+          name  : '바닐라',
+          img   : 'https://www.baskinrobbins.co.kr/upload/product/main/901f131644310c0eb356cbab7ecc4738.png',
+          imgArt: './images/1_vanilla.png',
+          quote : '튜닝의 끝은 순정! 자신의 할당량을 조화롭고 깔끔하게 100% 소화해 낸 팀원.',
+          fx    : 'fx-br-scoop',
+          ptcls : ['#FFFDD0','#FFF8DC','#F5F5DC','#FAEBD7'],
+        },
+        2: {
+          role  : '개성 넘치는',
+          name  : '민트 초콜릿 칩',
+          img   : 'https://www.baskinrobbins.co.kr/upload/product/main/fb92d70dee836652115c4f3b13175541.png',
+          imgArt: './images/5_mint.png',
+          quote : '열정은 넘치나 방향성이 살짝 아쉬움. 대중적인 합을 맞추기엔 시간이 부족했어요.',
+          fx    : 'fx-br-mint',
+          ptcls : ['#98FF98','#00FF7F','#3CB371','#AFFFCA'],
+        },
+        1: {
+          role  : '존재감 희미한',
+          name  : '녹은 샤베트',
+          img   : 'https://www.baskinrobbins.co.kr/upload/product/main/5ad63f3af7244a666d981a1497a39fe7.png',
+          imgArt: './images/3_sherbet.png',
+          quote : '어? 분명 입에 넣었는데 없어졌어요. 첫 회의 때 간만 보고 증발해 버린 존재감.',
+          fx    : 'fx-br-melt',
+          ptcls : ['#87CEEB','#ADD8E6','#B0E0E6','#E0F7FF'],
+        },
+      },
+    },
+  };
+
+  /* ==================== STATE ==================== */
+  let theme     = 'overwatch';
+  let evaluator = '';
+  let target    = '';
+  let picked    = null;
+
+  /* ==================== THEME TOGGLE ==================== */
+  function updateThemeUI() {
+    const toggle = document.getElementById('themeToggle');
+    toggle.checked = (theme === 'baskin');
+    document.body.setAttribute('data-theme', theme);
+    document.getElementById('owLbl').classList.toggle('on', theme === 'overwatch');
+    document.getElementById('brLbl').classList.toggle('on', theme === 'baskin');
+    applyThemeTexts();
+    if (document.getElementById('s-pick').classList.contains('active')) buildPickUI();
+    if (document.getElementById('s-result').classList.contains('active')) refreshResultUI();
+  }
+
+  function refreshResultUI() {
+    if (picked === null) return;
+    const s = THEMES[theme].scores[picked];
+    document.getElementById('rRole').textContent  = s.role;
+    document.getElementById('rName').textContent  = s.name;
+    document.getElementById('rQuote').textContent = s.quote;
+    const img = document.getElementById('rImg');
+    img.src = s.imgArt || s.img;
+    img.alt = s.name;
+    img.className = 'r-img ' + s.fx;
+    document.getElementById('rCard').className = 'r-card ' + theme + '-' + picked;
+    spawnParticles(s.ptcls);
+  }
+
+  document.getElementById('themeToggle').addEventListener('change', function () {
+    theme = this.checked ? 'baskin' : 'overwatch';
+    updateThemeUI();
+  });
+
+  function applyThemeTexts() {
+    const t = THEMES[theme];
+    document.getElementById('logoTitle').textContent = t.logoTitle;
+    document.getElementById('logoDesc').textContent  = t.logoDesc;
+    document.getElementById('lobbyBtn').textContent  = t.lobbyBtn;
+    document.getElementById('pickHint').textContent  = t.pickHint;
+    document.getElementById('submitBtn').textContent = t.submitBtn;
+  }
+
+  /* ==================== NAV ==================== */
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  /* ==================== SCREEN 1 ==================== */
+  function goToPick() {
+    evaluator = document.getElementById('inp-evaluator').value.trim();
+    target    = document.getElementById('inp-target').value.trim();
+    if (!evaluator) { document.getElementById('inp-evaluator').focus(); return; }
+    if (!target)    { document.getElementById('inp-target').focus();    return; }
+
+    document.getElementById('pickName').textContent = target + ' 평가 중';
+    picked = null;
+    buildPickUI();
+    show('s-pick');
+  }
+
+  /* ==================== SCREEN 2 ==================== */
+  function buildPickUI() {
+    const isOW = theme === 'overwatch';
+    const scores = THEMES[theme].scores;
+    const heroRow = document.getElementById('heroRow');
+    heroRow.innerHTML = '';
+
+    [5,4,3,2,1].forEach(score => {
+      const s = scores[score];
+      const el = document.createElement('div');
+      el.className = 'hero-portrait' + (picked === score ? ' sel' : '');
+      el.innerHTML = `
+        <div class="hp-score-lbl">${score}점</div>
+        <div class="hp-ring">
+          <img class="hp-img" src="${s.img}" alt="${s.name}"
+               onerror="this.style.background='var(--panel2)'">
+        </div>
+        <span class="hp-name">${s.name}</span>
+      `;
+      el.addEventListener('click', () => pick(score));
+      heroRow.appendChild(el);
+    });
+
+    // Empty prompt text by theme
+    document.getElementById('pickEmptyIcon').textContent = isOW ? '⬆' : '🍦';
+    document.getElementById('pickEmptyTxt').textContent  = isOW
+      ? '위에서 영웅을 선택하세요'
+      : '원하는 맛을 골라보세요';
+
+    // Restore detail / submit state
+    updateDetailPanel();
+    document.getElementById('submitBtn').disabled = (picked === null);
+    document.getElementById('submitBtn').textContent = THEMES[theme].submitBtn;
+  }
+
+  function pick(score) {
+    picked = score;
+    document.querySelectorAll('.hero-portrait').forEach((el, i) => {
+      el.classList.toggle('sel', (5 - i) === score);
+    });
+    updateDetailPanel();
+    document.getElementById('submitBtn').disabled = false;
+  }
+
+  function updateDetailPanel() {
+    const detail = document.getElementById('heroDetail');
+    const empty  = document.getElementById('pickEmpty');
+    const isOW   = theme === 'overwatch';
+
+    if (picked === null) {
+      detail.classList.remove('visible');
+      empty.style.display = 'flex';
+      return;
+    }
+
+    const s = THEMES[theme].scores[picked];
+    const img = document.getElementById('hdImg');
+    const artSrc = s.imgArt ? s.imgArt : s.img;
+    img.src = artSrc;
+    img.alt = s.name;
+    // 흰 배경 일러스트(wikia)는 blend-mode 적용
+    img.classList.toggle('art-illust', artSrc.includes('wikia.nocookie'));
+
+    document.getElementById('hdScore').textContent  = picked + '점';
+    document.getElementById('hdRole').textContent  = s.role;
+    document.getElementById('hdName').textContent  = s.name;
+    document.getElementById('hdQuote').textContent = s.quote;
+
+    // re-trigger animation
+    detail.classList.remove('visible');
+    void detail.offsetWidth;
+    detail.classList.add('visible');
+    empty.style.display = 'none';
+  }
+
+  /* ==================== SCREEN 3 ==================== */
+  function doSubmit() {
+    if (picked === null) return;
+    const s = THEMES[theme].scores[picked];
+
+    // Fill result
+    document.getElementById('rScore').textContent = picked;
+    document.getElementById('rRole').textContent  = s.role;
+    document.getElementById('rName').textContent  = s.name;
+    document.getElementById('rQuote').textContent = s.quote;
+    document.getElementById('rMeta').textContent  = `${evaluator} → ${target} · ${fmtNow()}`;
+
+    // Image + effect
+    const img = document.getElementById('rImg');
+    img.src = s.img;
+    img.alt = s.name;
+    img.className = 'r-img ' + s.fx;
+
+    // Card class
+    const card = document.getElementById('rCard');
+    card.className = 'r-card ' + theme + '-' + picked;
+
+    // Particles
+    spawnParticles(s.ptcls);
+
+    show('s-result');
+    saveToSheets();
+  }
+
+  function spawnParticles(colors) {
+    const box = document.getElementById('rParticles');
+    box.innerHTML = '';
+    for (let i = 0; i < 22; i++) {
+      const p = document.createElement('div');
+      const size = 5 + Math.random() * 9;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const delay = Math.random() * 0.9;
+      const dur   = 1.0 + Math.random() * 0.8;
+      p.className = 'particle';
+      p.style.cssText = `
+        left:${Math.random()*100}%;
+        top:${-size}px;
+        width:${size}px;
+        height:${size}px;
+        background:${color};
+        border-radius:${Math.random()>0.4?'50%':'3px'};
+        animation-delay:${delay}s;
+        animation-duration:${dur}s;
+      `;
+      box.appendChild(p);
+    }
+  }
+
+  function fmtNow() {
+    const d = new Date();
+    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  /* ==================== GOOGLE SHEETS ==================== */
+  function saveToSheets() {
+    const msg = document.getElementById('saveMsg');
+    if (!GAS_URL) {
+      msg.textContent = '⚠️ GAS URL 미설정 (로컬 테스트 모드)';
+      return;
+    }
+    const params = new URLSearchParams({
+      evaluator,
+      target,
+      score   : picked,
+      theme   : theme,
+      timestamp: new Date().toISOString(),
+    });
+    fetch(`${GAS_URL}?${params}`, { method: 'GET', mode: 'no-cors' })
+      .then(() => { msg.textContent = '✅ 시트 저장 완료'; })
+      .catch(() => { msg.textContent = '⚠️ 저장 실패 — 네트워크를 확인하세요'; });
+  }
+
+  /* ==================== RESET ==================== */
+  function resetApp() {
+    picked = null;
+    show('s-lobby');
+  }
+
+  /* ==================== INIT ==================== */
+  updateThemeUI();
+  </script>
+
+  <!--
+  ===== Google Apps Script (Code.gs) 템플릿 =====
+
+  function doGet(e) {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('evaluations');
+    const p = e.parameter;
+    sheet.appendRow([
+      p.timestamp,
+      p.evaluator,
+      p.target,
+      Number(p.score),
+      p.mode,
+    ]);
+    return ContentService.createTextOutput('ok');
+  }
+
+  배포 방법:
+  1. Apps Script 편집기에서 위 코드 붙여넣기
+  2. 배포 → 새 배포 → 웹 앱
+  3. 실행: 나, 액세스: 모든 사용자(익명)
+  4. 배포 후 URL을 위 GAS_URL 변수에 입력
+  ===================================================
+  -->
+</body>
+</html>
